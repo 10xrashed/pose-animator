@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pose Animator - Professional Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/facemesh@0.0.5"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --accent: #ff6b6b;
+            --bg-dark: #0f1419;
+            --bg-darker: #0a0e13;
+            --surface: #1a1f2e;
+            --surface-hover: #242d3d;
+            --text-primary: #e4e7eb;
+            --text-secondary: #a0a5b0;
+            --border: #2d3642;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--bg-darker) 0%, var(--bg-dark) 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: var(--text-primary);
+        }
+
+        .header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+            max-width: 1500px;
+        }
+
+        .panel {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .panel:hover {
+            background: var(--surface-hover);
+            box-shadow: 0 25px 70px rgba(102, 126, 234, 0.1);
+        }
+
+        #videoContainer {
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+        }
+
+        #video {
+            border-radius: 10px;
+            transform: scaleX(-1);
+            display: block;
+            background: var(--bg-dark);
+        }
+
+        #canvas {
+            border-radius: 10px;
+            background: var(--bg-dark);
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-width: 280px;
+        }
+
+        .control-group {
+            background: var(--bg-darker);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .control-group:hover {
+            border-color: var(--primary);
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        label {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            display: block;
+            font-size: 0.9rem;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 0.95rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: var(--surface);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+            border-color: var(--border);
+        }
+
+        .status {
+            padding: 12px;
+            background: var(--bg-darker);
+            border-radius: 10px;
+            font-size: 0.9rem;
+            text-align: center;
+            border: 1.5px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .status.loading {
+            background: rgba(255, 193, 7, 0.1);
+            border-color: #ffc107;
+            color: #ffc107;
+            animation: pulse 2s infinite;
+        }
+
+        .status.ready {
+            background: rgba(76, 175, 80, 0.1);
+            border-color: #4caf50;
+            color: #81c784;
+        }
+
+        .status.running {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .status.error {
+            background: rgba(244, 67, 54, 0.1);
+            border-color: #f44336;
+            color: #ef5350;
+        }
+
+        select, input[type="range"] {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1.5px solid var(--border);
+            background: var(--surface);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        select:hover, input[type="range"]:hover {
+            border-color: var(--primary);
+            background: var(--surface-hover);
+        }
+
+        select:focus, input[type="range"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        input[type="range"] {
+            padding: 0;
+            height: 6px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .stat-item {
+            background: var(--bg-darker);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .stat-value {
+            color: var(--primary);
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .toggle-btn {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .toggle-btn button {
+            flex: 1;
+            padding: 8px;
+            font-size: 0.85rem;
+            background: var(--surface);
+            color: var(--text-secondary);
+            border: 1.5px solid var(--border);
+        }
+
+        .toggle-btn button.active {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border-color: var(--primary);
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .panel {
+                max-width: 100%;
+            }
+
+            .controls {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎭 Pose Animator</h1>
+        <p class="subtitle">Professional Pose Detection & Animation</p>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <div id="videoContainer">
+                <video id="video" width="480" height="360" autoplay muted></video>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <canvas id="canvas" width="480" height="360"></canvas>
+        </div>
+        
+        <div class="panel controls">
+            <div class="status loading" id="status">
+                <div style="margin-bottom: 5px;">⏳ Loading models...</div>
+                <div style="font-size: 0.8rem;">This may take a moment</div>
+            </div>
+
+            <button id="startBtn" disabled>▶ Start Camera</button>
+            <button id="stopBtn" disabled>⏹ Stop Camera</button>
+            
+            <div class="control-group">
+                <label>Character Style</label>
+                <select id="characterStyle">
+                    <option value="stick">✨ Stick Figure</option>
+                    <option value="robot">🤖 Robot</option>
+                    <option value="neon">💫 Neon</option>
+                    <option value="human">👤 Human</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Animation Smoothing</label>
+                <input type="range" id="smoothingSlider" min="0.1" max="0.5" step="0.05" value="0.3">
+                <div class="stat-value" style="margin-top: 8px; text-align: center;" id="smoothingValue">30%</div>
+            </div>
+
+            <div class="control-group">
+                <label>Face Mesh</label>
+                <div class="toggle-btn">
+                    <button class="face-toggle active" data-value="true">On</button>
+                    <button class="face-toggle" data-value="false">Off</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Statistics</label>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Keypoints</div>
+                        <div class="stat-value" id="keypointCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">FPS</div>
+                        <div class="stat-value" id="fpsCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Confidence</div>
+                        <div class="stat-value" id="confidenceValue">0%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Detection</div>
+                        <div class="stat-value" id="detectionStatus">Idle</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let video, canvas, ctx;
+        let poseNet, faceMesh;
+        let currentPose = null;
+        let currentFace = null;
+        let isRunning = false;
+        let stream = null;
+        let smoothedKeypoints = {};
+        let smoothingFactor = 0.3;
+        let showFaceMesh = true;
+        let frameCount = 0;
+        let lastFpsTime = Date.now();
+        let fps = 0;
+
+        const statusEl = document.getElementById('status');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const characterStyle = document.getElementById('characterStyle');
+        const smoothingSlider = document.getElementById('smoothingSlider');
+        const faceToggles = document.querySelectorAll('.face-toggle');
+
+        // Fix animation smoothing and canvas bounds
+        const CANVAS_WIDTH = 480;
+        const CANVAS_HEIGHT = 360;
+
+        async function init() {
+            video = document.getElementById('video');
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+
+            try {
+                statusEl.textContent = '⏳ Loading PoseNet...';
+                poseNet = await posenet.load({
+                    architecture: 'MobileNetV1',
+                    outputStride: 16,
+                    inputResolution: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+                    multiplier: 0.75
+                });
+
+                statusEl.textContent = '⏳ Loading FaceMesh...';
+                faceMesh = await facemesh.load();
+
+                statusEl.textContent = '✅ Ready! Start Camera';
+                statusEl.className = 'status ready';
+                startBtn.disabled = false;
+            } catch (error) {
+                statusEl.textContent = '❌ Error: ' + error.message;
+                statusEl.className = 'status error';
+            }
+        }
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: CANVAS_WIDTH }, height: { ideal: CANVAS_HEIGHT } },
+                    audio: false
+                });
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    isRunning = true;
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    statusEl.textContent = '🎥 Running...';
+                    statusEl.className = 'status running';
+                    detectPose();
+                };
+            } catch (error) {
+                statusEl.textContent = '❌ Camera error: ' + error.message;
+                statusEl.className = 'status error';
+            }
+        }
+
+        function stopCamera() {
+            isRunning = false;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusEl.textContent = '⏹ Stopped';
+            statusEl.className = 'status loading';
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        }
+
+        // Improved pose detection with better bounds checking and smoothing
+        async function detectPose() {
+            if (!isRunning) return;
+
+            try {
+                frameCount++;
+                const currentTime = Date.now();
+                if (currentTime - lastFpsTime >= 1000) {
+                    fps = frameCount;
+                    frameCount = 0;
+                    lastFpsTime = currentTime;
+                    document.getElementById('fpsCount').textContent = fps;
+                }
+
+                const pose = await poseNet.estimateSinglePose(video, {
+                    flipHorizontal: true
+                });
+                
+                // Clamp keypoints to canvas bounds and smooth more aggressively
+                pose.keypoints.forEach(kp => {
+                    const clampedX = Math.max(0, Math.min(CANVAS_WIDTH, kp.position.x));
+                    const clampedY = Math.max(0, Math.min(CANVAS_HEIGHT, kp.position.y));
+
+                    if (!smoothedKeypoints[kp.part]) {
+                        smoothedKeypoints[kp.part] = { 
+                            x: clampedX, 
+                            y: clampedY, 
+                            score: kp.score 
+                        };
+                    } else {
+                        smoothedKeypoints[kp.part].x += (clampedX - smoothedKeypoints[kp.part].x) * smoothingFactor;
+                        smoothedKeypoints[kp.part].y += (clampedY - smoothedKeypoints[kp.part].y) * smoothingFactor;
+                        smoothedKeypoints[kp.part].score = kp.score;
+                    }
+                });
+                
+                currentPose = pose;
+
+                // Calculate average confidence
+                const avgConfidence = pose.keypoints.reduce((sum, kp) => sum + kp.score, 0) / pose.keypoints.length;
+                document.getElementById('confidenceValue').textContent = Math.round(avgConfidence * 100) + '%';
+                document.getElementById('keypointCount').textContent = pose.keypoints.filter(k => k.score > 0.3).length;
+
+                const faces = await faceMesh.estimateFaces(video, false, true);
+                currentFace = faces.length > 0 ? faces[0] : null;
+
+                drawCharacter();
+            } catch (error) {
+                console.error('Detection error:', error);
+            }
+
+            requestAnimationFrame(detectPose);
+        }
+
+        function drawCharacter() {
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            if (!currentPose) return;
+
+            const keypoints = currentPose.keypoints.map(kp => ({
+                part: kp.part,
+                position: smoothedKeypoints[kp.part] || kp.position,
+                score: kp.score
+            }));
+            const minConfidence = 0.3;
+
+            const style = characterStyle.value;
+
+            if (style === 'stick') {
+                drawStickFigure(keypoints, minConfidence);
+            } else if (style === 'robot') {
+                drawRobot(keypoints, minConfidence);
+            } else if (style === 'neon') {
+                drawNeon(keypoints, minConfidence);
+            } else {
+                drawHuman(keypoints, minConfidence);
+            }
+
+            if (currentFace && showFaceMesh) {
+                drawFaceMesh(currentFace);
+            }
+        }
+
+        // Improved stick figure with better bounds checking
+        function drawStickFigure(keypoints, minConfidence) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(102, 126, 234, 0.5)';
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            const connections = [
+                ['leftShoulder', 'rightShoulder'],
+                ['leftShoulder', 'leftElbow'],
+                ['leftElbow', 'leftWrist'],
+                ['rightShoulder', 'rightElbow'],
+                ['rightElbow', 'rightWrist'],
+                ['leftShoulder', 'leftHip'],
+                ['rightShoulder', 'rightHip'],
+                ['leftHip', 'rightHip'],
+                ['leftHip', 'leftKnee'],
+                ['leftKnee', 'leftAnkle'],
+                ['rightHip', 'rightKnee'],
+                ['rightKnee', 'rightAnkle']
+            ];
+
+            connections.forEach(([part1, part2]) => {
+                const kp1 = keypoints.find(kp => kp.part === part1);
+                const kp2 = keypoints.find(kp => kp.part === part2);
+                
+                if (kp1 && kp2 && kp1.score > minConfidence && kp2.score > minConfidence) {
+                    ctx.beginPath();
+                    ctx.moveTo(
+                        Math.max(0, Math.min(CANVAS_WIDTH, kp1.position.x)),
+                        Math.max(0, Math.min(CANVAS_HEIGHT, kp1.position.y))
+                    );
+                    ctx.lineTo(
+                        Math.max(0, Math.min(CANVAS_WIDTH, kp2.position.x)),
+                        Math.max(0, Math.min(CANVAS_HEIGHT, kp2.position.y))
+                    );
+                    ctx.stroke();
+                }
+            });
+
+            const nose = keypoints.find(kp => kp.part === 'nose');
+            if (nose && nose.score > minConfidence) {
+                const gradient = ctx.createRadialGradient(
+                    nose.position.x, nose.position.y, 0,
+                    nose.position.x, nose.position.y, 30
+                );
+                gradient.addColorStop(0, '#764ba2');
+                gradient.addColorStop(1, '#667eea');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(
+                    Math.max(0, Math.min(CANVAS_WIDTH, nose.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, nose.position.y)),
+                    30, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+
+            ctx.shadowBlur = 0;
+        }
+
+        function drawNeon(keypoints, minConfidence) {
+            ctx.strokeStyle = '#00ff88';
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#00ff88';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            const connections = [
+                ['leftShoulder', 'rightShoulder'],
+                ['leftShoulder', 'leftElbow'],
+                ['leftElbow', 'leftWrist'],
+                ['rightShoulder', 'rightElbow'],
+                ['rightElbow', 'rightWrist'],
+                ['leftShoulder', 'leftHip'],
+                ['rightShoulder', 'rightHip'],
+                ['leftHip', 'rightHip'],
+                ['leftHip', 'leftKnee'],
+                ['leftKnee', 'leftAnkle'],
+                ['rightHip', 'rightKnee'],
+                ['rightKnee', 'rightAnkle']
+            ];
+
+            connections.forEach(([part1, part2]) => {
+                const kp1 = keypoints.find(kp => kp.part === part1);
+                const kp2 = keypoints.find(kp => kp.part === part2);
+                
+                if (kp1 && kp2 && kp1.score > minConfidence && kp2.score > minConfidence) {
+                    ctx.beginPath();
+                    ctx.moveTo(
+                        Math.max(0, Math.min(CANVAS_WIDTH, kp1.position.x)),
+                        Math.max(0, Math.min(CANVAS_HEIGHT, kp1.position.y))
+                    );
+                    ctx.lineTo(
+                        Math.max(0, Math.min(CANVAS_WIDTH, kp2.position.x)),
+                        Math.max(0, Math.min(CANVAS_HEIGHT, kp2.position.y))
+                    );
+                    ctx.stroke();
+                }
+            });
+
+            ctx.fillStyle = '#00ff88';
+            const jointParts = ['nose', 'leftEye', 'rightEye', 'leftEar', 'rightEar', 'leftShoulder', 'rightShoulder', 'leftElbow', 'rightElbow', 'leftWrist', 'rightWrist', 'leftHip', 'rightHip', 'leftKnee', 'rightKnee', 'leftAnkle', 'rightAnkle'];
+            
+            jointParts.forEach(part => {
+                const kp = keypoints.find(k => k.part === part);
+                if (kp && kp.score > minConfidence) {
+                    const x = Math.max(0, Math.min(CANVAS_WIDTH, kp.position.x));
+                    const y = Math.max(0, Math.min(CANVAS_HEIGHT, kp.position.y));
+                    
+                    // Larger circles for wrists/hands
+                    const radius = (part.includes('Wrist') || part.includes('Ankle')) ? 8 : 6;
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            ctx.shadowBlur = 0;
+        }
+
+        function drawRobot(keypoints, minConfidence) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'rgba(102, 126, 234, 0.5)';
+
+            // Draw body/torso
+            const leftShoulder = keypoints.find(kp => kp.part === 'leftShoulder');
+            const rightShoulder = keypoints.find(kp => kp.part === 'rightShoulder');
+            const leftHip = keypoints.find(kp => kp.part === 'leftHip');
+            const rightHip = keypoints.find(kp => kp.part === 'rightHip');
+
+            if (leftShoulder && rightShoulder && leftHip && rightHip &&
+                leftShoulder.score > minConfidence && rightShoulder.score > minConfidence &&
+                leftHip.score > minConfidence && rightHip.score > minConfidence) {
+                
+                const x1 = (leftShoulder.position.x + rightShoulder.position.x) / 2;
+                const y1 = (leftShoulder.position.y + rightShoulder.position.y) / 2;
+                const x2 = (leftHip.position.x + rightHip.position.x) / 2;
+                const y2 = (leftHip.position.y + rightHip.position.y) / 2;
+                const width = Math.abs(rightShoulder.position.x - leftShoulder.position.x) * 0.6;
+
+                const gradient = ctx.createLinearGradient(x1 - width/2, y1, x1 + width/2, y2);
+                gradient.addColorStop(0, '#8a9cff');
+                gradient.addColorStop(0.5, '#667eea');
+                gradient.addColorStop(1, '#4a5eb8');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x1 - width/2, y1, width, y2 - y1 + 20);
+                
+                // Draw grid pattern on body
+                ctx.strokeStyle = '#4a5eb8';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 4; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x1 - width/2, y1 + (y2 - y1 + 20) * (i / 4));
+                    ctx.lineTo(x1 + width/2, y1 + (y2 - y1 + 20) * (i / 4));
+                    ctx.stroke();
+                }
+            }
+
+            // Draw robot head
+            const nose = keypoints.find(kp => kp.part === 'nose');
+            if (nose && nose.score > minConfidence) {
+                const x = Math.max(0, Math.min(CANVAS_WIDTH, nose.position.x));
+                const y = Math.max(0, Math.min(CANVAS_HEIGHT, nose.position.y));
+
+                ctx.fillStyle = '#667eea';
+                ctx.fillRect(x - 30, y - 35, 60, 60);
+
+                // Eyes
+                ctx.fillStyle = '#00ff88';
+                ctx.fillRect(x - 20, y - 20, 12, 12);
+                ctx.fillRect(x + 8, y - 20, 12, 12);
+
+                // Mouth
+                ctx.strokeStyle = '#764ba2';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x - 15, y + 5);
+                ctx.lineTo(x + 15, y + 5);
+                ctx.stroke();
+            }
+
+            const leftElbow = keypoints.find(kp => kp.part === 'leftElbow');
+            const leftWrist = keypoints.find(kp => kp.part === 'leftWrist');
+            const rightElbow = keypoints.find(kp => kp.part === 'rightElbow');
+            const rightWrist = keypoints.find(kp => kp.part === 'rightWrist');
+
+            if (leftElbow && leftWrist && leftElbow.score > minConfidence && leftWrist.score > minConfidence) {
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 12;
+                ctx.beginPath();
+                ctx.moveTo(
+                    Math.max(0, Math.min(CANVAS_WIDTH, leftShoulder.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, leftShoulder.position.y))
+                );
+                ctx.lineTo(
+                    Math.max(0, Math.min(CANVAS_WIDTH, leftElbow.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, leftElbow.position.y))
+                );
+                ctx.lineTo(
+                    Math.max(0, Math.min(CANVAS_WIDTH, leftWrist.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, leftWrist.position.y))
+                );
+                ctx.stroke();
+
+                // Hand
+                ctx.fillStyle = '#8a9cff';
+                ctx.beginPath();
+                ctx.arc(
+                    Math.max(0, Math.min(CANVAS_WIDTH, leftWrist.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, leftWrist.position.y)),
+                    10, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+
+            if (rightElbow && rightWrist && rightElbow.score > minConfidence && rightWrist.score > minConfidence) {
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 12;
+                ctx.beginPath();
+                ctx.moveTo(
+                    Math.max(0, Math.min(CANVAS_WIDTH, rightShoulder.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, rightShoulder.position.y))
+                );
+                ctx.lineTo(
+                    Math.max(0, Math.min(CANVAS_WIDTH, rightElbow.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, rightElbow.position.y))
+                );
+                ctx.lineTo(
+                    Math.max(0, Math.min(CANVAS_WIDTH, rightWrist.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, rightWrist.position.y))
+                );
+                ctx.stroke();
+
+                // Hand
+                ctx.fillStyle = '#8a9cff';
+                ctx.beginPath();
+                ctx.arc(
+                    Math.max(0, Math.min(CANVAS_WIDTH, rightWrist.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, rightWrist.position.y)),
+                    10, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+
+            ctx.shadowBlur = 0;
+        }
+
+        function drawHuman(keypoints, minConfidence) {
+            const nose = keypoints.find(kp => kp.part === 'nose');
+            const leftEye = keypoints.find(kp => kp.part === 'leftEye');
+            const rightEye = keypoints.find(kp => kp.part === 'rightEye');
+            const leftShoulder = keypoints.find(kp => kp.part === 'leftShoulder');
+            const rightShoulder = keypoints.find(kp => kp.part === 'rightShoulder');
+
+            if (!nose || nose.score < minConfidence) return;
+
+            const x = Math.max(0, Math.min(CANVAS_WIDTH, nose.position.x));
+            const y = Math.max(0, Math.min(CANVAS_HEIGHT, nose.position.y));
+
+            // Draw anime head with bigger proportions
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'rgba(118, 75, 162, 0.5)';
+            
+            // Head
+            ctx.fillStyle = '#fdbcb4';
+            ctx.beginPath();
+            ctx.ellipse(x, y - 5, 45, 55, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Hair
+            ctx.fillStyle = '#764ba2';
+            ctx.beginPath();
+            ctx.ellipse(x, y - 35, 48, 35, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const eyeOffsetX = 20;
+            const eyeOffsetY = -15;
+
+            // Left eye
+            if (leftEye && leftEye.score > minConfidence) {
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.ellipse(x - eyeOffsetX, y + eyeOffsetY, 18, 22, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#764ba2';
+                ctx.beginPath();
+                ctx.ellipse(x - eyeOffsetX - 3, y + eyeOffsetY, 12, 14, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(x - eyeOffsetX - 3, y + eyeOffsetY, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(x - eyeOffsetX - 1, y + eyeOffsetY - 2, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Right eye
+            if (rightEye && rightEye.score > minConfidence) {
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.ellipse(x + eyeOffsetX, y + eyeOffsetY, 18, 22, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#764ba2';
+                ctx.beginPath();
+                ctx.ellipse(x + eyeOffsetX + 3, y + eyeOffsetY, 12, 14, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(x + eyeOffsetX + 3, y + eyeOffsetY, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(x + eyeOffsetX + 1, y + eyeOffsetY - 2, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Mouth
+            ctx.strokeStyle = '#ff6b9d';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y + 25, 12, 0, Math.PI, false);
+            ctx.stroke();
+
+            // Draw body/torso
+            ctx.fillStyle = '#667eea';
+            ctx.fillRect(x - 30, y + 50, 60, 50);
+
+            // Draw arms and hands
+            const leftElbow = keypoints.find(kp => kp.part === 'leftElbow');
+            const leftWrist = keypoints.find(kp => kp.part === 'leftWrist');
+            const rightElbow = keypoints.find(kp => kp.part === 'rightElbow');
+            const rightWrist = keypoints.find(kp => kp.part === 'rightWrist');
+
+            if (leftElbow && leftWrist && leftElbow.score > minConfidence && leftWrist.score > minConfidence) {
+                ctx.strokeStyle = '#fdbcb4';
+                ctx.lineWidth = 10;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(x - 30, y + 55);
+                ctx.lineTo(
+                    Math.max(0, Math.min(CANVAS_WIDTH, leftElbow.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, leftElbow.position.y))
+                );
+                ctx.lineTo(
+                    Math.max(0, Math.min(CANVAS_WIDTH, leftWrist.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, leftWrist.position.y))
+                );
+                ctx.stroke();
+
+                // Hand
+                ctx.fillStyle = '#fdbcb4';
+                ctx.beginPath();
+                ctx.arc(
+                    Math.max(0, Math.min(CANVAS_WIDTH, leftWrist.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, leftWrist.position.y)),
+                    8, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+
+            if (rightElbow && rightWrist && rightElbow.score > minConfidence && rightWrist.score > minConfidence) {
+                ctx.strokeStyle = '#fdbcb4';
+                ctx.lineWidth = 10;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(x + 30, y + 55);
+                ctx.lineTo(
+                    Math.max(0, Math.min(CANVAS_WIDTH, rightElbow.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, rightElbow.position.y))
+                );
+                ctx.lineTo(
+                    Math.max(0, Math.min(CANVAS_WIDTH, rightWrist.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, rightWrist.position.y))
+                );
+                ctx.stroke();
+
+                // Hand
+                ctx.fillStyle = '#fdbcb4';
+                ctx.beginPath();
+                ctx.arc(
+                    Math.max(0, Math.min(CANVAS_WIDTH, rightWrist.position.x)),
+                    Math.max(0, Math.min(CANVAS_HEIGHT, rightWrist.position.y)),
+                    8, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+
+            ctx.shadowBlur = 0;
+        }
+
+        function drawFaceMesh(face) {
+            const keypoints = face.scaledMesh;
+            ctx.fillStyle = 'rgba(0, 255, 136, 0.3)';
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.5)';
+            ctx.lineWidth = 0.5;
+            
+            keypoints.forEach((point, idx) => {
+                const x = Math.max(0, Math.min(CANVAS_WIDTH, point[0]));
+                const y = Math.max(0, Math.min(CANVAS_HEIGHT, point[1]));
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', startCamera);
+        stopBtn.addEventListener('click', stopCamera);
+
+        smoothingSlider.addEventListener('input', (e) => {
+            smoothingFactor = parseFloat(e.target.value);
+            document.getElementById('smoothingValue').textContent = Math.round(smoothingFactor * 100) + '%';
+        });
+
+        faceToggles.forEach(btn => {
+            btn.addEventListener('click', () => {
+                faceToggles.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                showFaceMesh = btn.dataset.value === 'true';
+            });
+        });
+
+        init();
+    </script>
+</body>
+</html>
