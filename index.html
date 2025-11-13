@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pose Animator - Professional Edition</title>
+    <title>Pose Animator</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/facemesh@0.0.5"></script>
@@ -317,8 +317,8 @@
 </head>
 <body>
     <div class="header">
-        <h1>🎭 Pose Animator</h1>
-        <p class="subtitle">Professional Pose Detection & Animation</p>
+        <h1>Pose Animator</h1>
+        <p class="subtitle"> Pose Detection & Animation</p>
     </div>
 
     <div class="container">
@@ -339,15 +339,15 @@
             </div>
 
             <button id="startBtn" disabled>▶ Start Camera</button>
-            <button id="stopBtn" disabled>⏹ Stop Camera</button>
+            <button id="stopBtn" disabled>⏸ Stop Camera</button>
             
             <div class="control-group">
                 <label>Character Style</label>
                 <select id="characterStyle">
-                    <option value="stick">✨ Stick Figure</option>
                     <option value="robot">🤖 Robot</option>
-                    <option value="neon">💫 Neon</option>
                     <option value="human">👤 Human</option>
+                    <option value="stick">✨ Stick Figure</option>
+                    <option value="neon">💫 Neon</option>
                 </select>
             </div>
 
@@ -410,7 +410,6 @@
         const smoothingSlider = document.getElementById('smoothingSlider');
         const faceToggles = document.querySelectorAll('.face-toggle');
 
-        // Fix animation smoothing and canvas bounds
         const CANVAS_WIDTH = 480;
         const CANVAS_HEIGHT = 360;
 
@@ -420,7 +419,7 @@
             ctx = canvas.getContext('2d');
 
             try {
-                statusEl.textContent = '⏳ Loading PoseNet...';
+                statusEl.innerHTML = '<div style="margin-bottom: 5px;">⏳ Loading PoseNet...</div>';
                 poseNet = await posenet.load({
                     architecture: 'MobileNetV1',
                     outputStride: 16,
@@ -428,10 +427,10 @@
                     multiplier: 0.75
                 });
 
-                statusEl.textContent = '⏳ Loading FaceMesh...';
+                statusEl.innerHTML = '<div style="margin-bottom: 5px;">⏳ Loading FaceMesh...</div>';
                 faceMesh = await facemesh.load();
 
-                statusEl.textContent = '✅ Ready! Start Camera';
+                statusEl.innerHTML = '<div style="margin-bottom: 5px;">✅ Ready!</div><div style="font-size: 0.8rem;">Click Start Camera</div>';
                 statusEl.className = 'status ready';
                 startBtn.disabled = false;
             } catch (error) {
@@ -452,8 +451,9 @@
                     isRunning = true;
                     startBtn.disabled = true;
                     stopBtn.disabled = false;
-                    statusEl.textContent = '🎥 Running...';
+                    statusEl.innerHTML = '<div>🎥 Running...</div>';
                     statusEl.className = 'status running';
+                    document.getElementById('detectionStatus').textContent = 'Active';
                     detectPose();
                 };
             } catch (error) {
@@ -469,12 +469,12 @@
             }
             startBtn.disabled = false;
             stopBtn.disabled = true;
-            statusEl.textContent = '⏹ Stopped';
+            statusEl.innerHTML = '<div>⏸ Stopped</div>';
             statusEl.className = 'status loading';
+            document.getElementById('detectionStatus').textContent = 'Idle';
             ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         }
 
-        // Improved pose detection with better bounds checking and smoothing
         async function detectPose() {
             if (!isRunning) return;
 
@@ -492,7 +492,6 @@
                     flipHorizontal: true
                 });
                 
-                // Clamp keypoints to canvas bounds and smooth more aggressively
                 pose.keypoints.forEach(kp => {
                     const clampedX = Math.max(0, Math.min(CANVAS_WIDTH, kp.position.x));
                     const clampedY = Math.max(0, Math.min(CANVAS_HEIGHT, kp.position.y));
@@ -512,7 +511,6 @@
                 
                 currentPose = pose;
 
-                // Calculate average confidence
                 const avgConfidence = pose.keypoints.reduce((sum, kp) => sum + kp.score, 0) / pose.keypoints.length;
                 document.getElementById('confidenceValue').textContent = Math.round(avgConfidence * 100) + '%';
                 document.getElementById('keypointCount').textContent = pose.keypoints.filter(k => k.score > 0.3).length;
@@ -557,7 +555,6 @@
             }
         }
 
-        // Improved stick figure with better bounds checking
         function drawStickFigure(keypoints, minConfidence) {
             ctx.shadowBlur = 15;
             ctx.shadowColor = 'rgba(102, 126, 234, 0.5)';
@@ -587,43 +584,65 @@
                 
                 if (kp1 && kp2 && kp1.score > minConfidence && kp2.score > minConfidence) {
                     ctx.beginPath();
-                    ctx.moveTo(
-                        Math.max(0, Math.min(CANVAS_WIDTH, kp1.position.x)),
-                        Math.max(0, Math.min(CANVAS_HEIGHT, kp1.position.y))
-                    );
-                    ctx.lineTo(
-                        Math.max(0, Math.min(CANVAS_WIDTH, kp2.position.x)),
-                        Math.max(0, Math.min(CANVAS_HEIGHT, kp2.position.y))
-                    );
+                    ctx.moveTo(kp1.position.x, kp1.position.y);
+                    ctx.lineTo(kp2.position.x, kp2.position.y);
                     ctx.stroke();
                 }
             });
 
             const nose = keypoints.find(kp => kp.part === 'nose');
+            const leftEye = keypoints.find(kp => kp.part === 'leftEye');
+            const rightEye = keypoints.find(kp => kp.part === 'rightEye');
+            
             if (nose && nose.score > minConfidence) {
-                const gradient = ctx.createRadialGradient(
-                    nose.position.x, nose.position.y, 0,
-                    nose.position.x, nose.position.y, 30
-                );
+                const gradient = ctx.createRadialGradient(nose.position.x, nose.position.y, 0, nose.position.x, nose.position.y, 30);
                 gradient.addColorStop(0, '#764ba2');
                 gradient.addColorStop(1, '#667eea');
                 ctx.fillStyle = gradient;
                 ctx.beginPath();
-                ctx.arc(
-                    Math.max(0, Math.min(CANVAS_WIDTH, nose.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, nose.position.y)),
-                    30, 0, Math.PI * 2
-                );
+                ctx.arc(nose.position.x, nose.position.y, 30, 0, Math.PI * 2);
                 ctx.fill();
+                
+                ctx.fillStyle = 'white';
+                if (leftEye && leftEye.score > minConfidence) {
+                    ctx.beginPath();
+                    ctx.arc(leftEye.position.x, leftEye.position.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                if (rightEye && rightEye.score > minConfidence) {
+                    ctx.beginPath();
+                    ctx.arc(rightEye.position.x, rightEye.position.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
 
+            ctx.shadowBlur = 10;
+            const time = Date.now() / 500;
+            const pulse = Math.sin(time) * 2 + 6;
+            
+            keypoints.forEach(kp => {
+                if (kp.score > minConfidence) {
+                    const gradient = ctx.createRadialGradient(kp.position.x, kp.position.y, 0, kp.position.x, kp.position.y, pulse);
+                    gradient.addColorStop(0, '#ffffff');
+                    gradient.addColorStop(0.5, '#764ba2');
+                    gradient.addColorStop(1, 'rgba(118, 75, 162, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(kp.position.x, kp.position.y, pulse, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            
             ctx.shadowBlur = 0;
         }
 
         function drawNeon(keypoints, minConfidence) {
-            ctx.strokeStyle = '#00ff88';
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#00ff88';
+            const time = Date.now() / 1000;
+            const hue = (time * 50) % 360;
+            
+            ctx.strokeStyle = `hsl(${hue}, 100%, 60%)`;
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
             ctx.lineWidth = 3;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
@@ -649,31 +668,20 @@
                 
                 if (kp1 && kp2 && kp1.score > minConfidence && kp2.score > minConfidence) {
                     ctx.beginPath();
-                    ctx.moveTo(
-                        Math.max(0, Math.min(CANVAS_WIDTH, kp1.position.x)),
-                        Math.max(0, Math.min(CANVAS_HEIGHT, kp1.position.y))
-                    );
-                    ctx.lineTo(
-                        Math.max(0, Math.min(CANVAS_WIDTH, kp2.position.x)),
-                        Math.max(0, Math.min(CANVAS_HEIGHT, kp2.position.y))
-                    );
+                    ctx.moveTo(kp1.position.x, kp1.position.y);
+                    ctx.lineTo(kp2.position.x, kp2.position.y);
                     ctx.stroke();
                 }
             });
 
-            ctx.fillStyle = '#00ff88';
-            const jointParts = ['nose', 'leftEye', 'rightEye', 'leftEar', 'rightEar', 'leftShoulder', 'rightShoulder', 'leftElbow', 'rightElbow', 'leftWrist', 'rightWrist', 'leftHip', 'rightHip', 'leftKnee', 'rightKnee', 'leftAnkle', 'rightAnkle'];
+            ctx.fillStyle = `hsl(${hue}, 100%, 60%)`;
+            const pulse = Math.sin(time * 3) * 2 + 8;
             
-            jointParts.forEach(part => {
-                const kp = keypoints.find(k => k.part === part);
-                if (kp && kp.score > minConfidence) {
-                    const x = Math.max(0, Math.min(CANVAS_WIDTH, kp.position.x));
-                    const y = Math.max(0, Math.min(CANVAS_HEIGHT, kp.position.y));
-                    
-                    // Larger circles for wrists/hands
-                    const radius = (part.includes('Wrist') || part.includes('Ankle')) ? 8 : 6;
+            keypoints.forEach(kp => {
+                if (kp.score > minConfidence) {
+                    ctx.shadowBlur = 20;
                     ctx.beginPath();
-                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.arc(kp.position.x, kp.position.y, pulse, 0, Math.PI * 2);
                     ctx.fill();
                 }
             });
@@ -681,11 +689,25 @@
             ctx.shadowBlur = 0;
         }
 
+        function roundRect(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            ctx.fill();
+        }
+
         function drawRobot(keypoints, minConfidence) {
             ctx.shadowBlur = 20;
             ctx.shadowColor = 'rgba(102, 126, 234, 0.5)';
 
-            // Draw body/torso
             const leftShoulder = keypoints.find(kp => kp.part === 'leftShoulder');
             const rightShoulder = keypoints.find(kp => kp.part === 'rightShoulder');
             const leftHip = keypoints.find(kp => kp.part === 'leftHip');
@@ -699,7 +721,7 @@
                 const y1 = (leftShoulder.position.y + rightShoulder.position.y) / 2;
                 const x2 = (leftHip.position.x + rightHip.position.x) / 2;
                 const y2 = (leftHip.position.y + rightHip.position.y) / 2;
-                const width = Math.abs(rightShoulder.position.x - leftShoulder.position.x) * 0.6;
+                const width = Math.abs(rightShoulder.position.x - leftShoulder.position.x) * 0.7;
 
                 const gradient = ctx.createLinearGradient(x1 - width/2, y1, x1 + width/2, y2);
                 gradient.addColorStop(0, '#8a9cff');
@@ -707,104 +729,116 @@
                 gradient.addColorStop(1, '#4a5eb8');
                 
                 ctx.fillStyle = gradient;
-                ctx.fillRect(x1 - width/2, y1, width, y2 - y1 + 20);
+                roundRect(ctx, x1 - width/2, y1, width, y2 - y1 + 20, 10);
                 
-                // Draw grid pattern on body
-                ctx.strokeStyle = '#4a5eb8';
-                ctx.lineWidth = 1;
-                for (let i = 0; i < 4; i++) {
-                    ctx.beginPath();
-                    ctx.moveTo(x1 - width/2, y1 + (y2 - y1 + 20) * (i / 4));
-                    ctx.lineTo(x1 + width/2, y1 + (y2 - y1 + 20) * (i / 4));
-                    ctx.stroke();
-                }
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x1 - width/4, y1 + 15, width/2, 30);
             }
 
-            // Draw robot head
             const nose = keypoints.find(kp => kp.part === 'nose');
+            const leftEye = keypoints.find(kp => kp.part === 'leftEye');
+            const rightEye = keypoints.find(kp => kp.part === 'rightEye');
+
             if (nose && nose.score > minConfidence) {
-                const x = Math.max(0, Math.min(CANVAS_WIDTH, nose.position.x));
-                const y = Math.max(0, Math.min(CANVAS_HEIGHT, nose.position.y));
+                const x = nose.position.x;
+                const y = nose.position.y;
 
                 ctx.fillStyle = '#667eea';
-                ctx.fillRect(x - 30, y - 35, 60, 60);
+                roundRect(ctx, x - 35, y - 40, 70, 70, 8);
 
-                // Eyes
-                ctx.fillStyle = '#00ff88';
-                ctx.fillRect(x - 20, y - 20, 12, 12);
-                ctx.fillRect(x + 8, y - 20, 12, 12);
-
-                // Mouth
                 ctx.strokeStyle = '#764ba2';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(x, y - 40);
+                ctx.lineTo(x, y - 60);
+                ctx.stroke();
+                
+                const time = Date.now() / 1000;
+                const blink = Math.sin(time * 2) * 2 + 5;
+                ctx.fillStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.arc(x, y - 60, blink, 0, Math.PI * 2);
+                ctx.fill();
+
+                const eyeGlow = Math.sin(time * 3) * 0.3 + 0.7;
+                ctx.fillStyle = `rgba(0, 255, 255, ${eyeGlow})`;
+                ctx.shadowColor = 'cyan';
+                ctx.shadowBlur = 15;
+                
+                if (leftEye && leftEye.score > minConfidence) {
+                    ctx.fillRect(leftEye.position.x - 8, leftEye.position.y - 8, 16, 16);
+                }
+                if (rightEye && rightEye.score > minConfidence) {
+                    ctx.fillRect(rightEye.position.x - 8, rightEye.position.y - 8, 16, 16);
+                }
+
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#00ffff';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(x - 15, y + 5);
-                ctx.lineTo(x + 15, y + 5);
+                ctx.moveTo(x - 20, y + 15);
+                ctx.lineTo(x + 20, y + 15);
                 ctx.stroke();
             }
 
-            const leftElbow = keypoints.find(kp => kp.part === 'leftElbow');
-            const leftWrist = keypoints.find(kp => kp.part === 'leftWrist');
-            const rightElbow = keypoints.find(kp => kp.part === 'rightElbow');
-            const rightWrist = keypoints.find(kp => kp.part === 'rightWrist');
+            ['left', 'right'].forEach(side => {
+                const shoulder = keypoints.find(kp => kp.part === `${side}Shoulder`);
+                const elbow = keypoints.find(kp => kp.part === `${side}Elbow`);
+                const wrist = keypoints.find(kp => kp.part === `${side}Wrist`);
 
-            if (leftElbow && leftWrist && leftElbow.score > minConfidence && leftWrist.score > minConfidence) {
-                ctx.strokeStyle = '#667eea';
-                ctx.lineWidth = 12;
-                ctx.beginPath();
-                ctx.moveTo(
-                    Math.max(0, Math.min(CANVAS_WIDTH, leftShoulder.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, leftShoulder.position.y))
-                );
-                ctx.lineTo(
-                    Math.max(0, Math.min(CANVAS_WIDTH, leftElbow.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, leftElbow.position.y))
-                );
-                ctx.lineTo(
-                    Math.max(0, Math.min(CANVAS_WIDTH, leftWrist.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, leftWrist.position.y))
-                );
-                ctx.stroke();
+                if (shoulder && elbow && wrist && shoulder.score > minConfidence && 
+                    elbow.score > minConfidence && wrist.score > minConfidence) {
+                    
+                    ctx.strokeStyle = '#667eea';
+                    ctx.lineWidth = 12;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(shoulder.position.x, shoulder.position.y);
+                    ctx.lineTo(elbow.position.x, elbow.position.y);
+                    ctx.lineTo(wrist.position.x, wrist.position.y);
+                    ctx.stroke();
 
-                // Hand
-                ctx.fillStyle = '#8a9cff';
-                ctx.beginPath();
-                ctx.arc(
-                    Math.max(0, Math.min(CANVAS_WIDTH, leftWrist.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, leftWrist.position.y)),
-                    10, 0, Math.PI * 2
-                );
-                ctx.fill();
-            }
+                    ctx.fillStyle = '#8a9cff';
+                    ctx.beginPath();
+                    ctx.arc(elbow.position.x, elbow.position.y, 8, 0, Math.PI * 2);
+                    ctx.fill();
 
-            if (rightElbow && rightWrist && rightElbow.score > minConfidence && rightWrist.score > minConfidence) {
-                ctx.strokeStyle = '#667eea';
-                ctx.lineWidth = 12;
-                ctx.beginPath();
-                ctx.moveTo(
-                    Math.max(0, Math.min(CANVAS_WIDTH, rightShoulder.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, rightShoulder.position.y))
-                );
-                ctx.lineTo(
-                    Math.max(0, Math.min(CANVAS_WIDTH, rightElbow.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, rightElbow.position.y))
-                );
-                ctx.lineTo(
-                    Math.max(0, Math.min(CANVAS_WIDTH, rightWrist.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, rightWrist.position.y))
-                );
-                ctx.stroke();
+                    ctx.fillStyle = '#4a5eb8';
+                    ctx.beginPath();
+                    ctx.arc(wrist.position.x, wrist.position.y, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
 
-                // Hand
-                ctx.fillStyle = '#8a9cff';
-                ctx.beginPath();
-                ctx.arc(
-                    Math.max(0, Math.min(CANVAS_WIDTH, rightWrist.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, rightWrist.position.y)),
-                    10, 0, Math.PI * 2
-                );
-                ctx.fill();
-            }
+            ['left', 'right'].forEach(side => {
+                const hip = keypoints.find(kp => kp.part === `${side}Hip`);
+                const knee = keypoints.find(kp => kp.part === `${side}Knee`);
+                const ankle = keypoints.find(kp => kp.part === `${side}Ankle`);
+
+                if (hip && knee && ankle && hip.score > minConfidence && 
+                    knee.score > minConfidence && ankle.score > minConfidence) {
+                    
+                    ctx.strokeStyle = '#667eea';
+                    ctx.lineWidth = 14;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(hip.position.x, hip.position.y);
+                    ctx.lineTo(knee.position.x, knee.position.y);
+                    ctx.lineTo(ankle.position.x, ankle.position.y);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#8a9cff';
+                    ctx.beginPath();
+                    ctx.arc(knee.position.x, knee.position.y, 9, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#4a5eb8';
+                    ctx.beginPath();
+                    ctx.arc(ankle.position.x, ankle.position.y, 11, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
 
             ctx.shadowBlur = 0;
         }
@@ -815,23 +849,22 @@
             const rightEye = keypoints.find(kp => kp.part === 'rightEye');
             const leftShoulder = keypoints.find(kp => kp.part === 'leftShoulder');
             const rightShoulder = keypoints.find(kp => kp.part === 'rightShoulder');
+            const leftHip = keypoints.find(kp => kp.part === 'leftHip');
+            const rightHip = keypoints.find(kp => kp.part === 'rightHip');
 
             if (!nose || nose.score < minConfidence) return;
 
-            const x = Math.max(0, Math.min(CANVAS_WIDTH, nose.position.x));
-            const y = Math.max(0, Math.min(CANVAS_HEIGHT, nose.position.y));
+            const x = nose.position.x;
+            const y = nose.position.y;
 
-            // Draw anime head with bigger proportions
             ctx.shadowBlur = 20;
             ctx.shadowColor = 'rgba(118, 75, 162, 0.5)';
             
-            // Head
             ctx.fillStyle = '#fdbcb4';
             ctx.beginPath();
             ctx.ellipse(x, y - 5, 45, 55, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Hair
             ctx.fillStyle = '#764ba2';
             ctx.beginPath();
             ctx.ellipse(x, y - 35, 48, 35, 0, 0, Math.PI * 2);
@@ -839,123 +872,126 @@
 
             const eyeOffsetX = 20;
             const eyeOffsetY = -15;
+            const time = Date.now() / 2000;
+            const blink = Math.abs(Math.sin(time * 0.5)) > 0.95 ? 0.3 : 1;
 
-            // Left eye
             if (leftEye && leftEye.score > minConfidence) {
                 ctx.fillStyle = '#ffffff';
                 ctx.beginPath();
-                ctx.ellipse(x - eyeOffsetX, y + eyeOffsetY, 18, 22, 0, 0, Math.PI * 2);
+                ctx.ellipse(x - eyeOffsetX, y + eyeOffsetY, 18, 22 * blink, 0, 0, Math.PI * 2);
                 ctx.fill();
 
-                ctx.fillStyle = '#764ba2';
-                ctx.beginPath();
-                ctx.ellipse(x - eyeOffsetX - 3, y + eyeOffsetY, 12, 14, 0, 0, Math.PI * 2);
-                ctx.fill();
+                if (blink > 0.5) {
+                    ctx.fillStyle = '#764ba2';
+                    ctx.beginPath();
+                    ctx.ellipse(x - eyeOffsetX - 3, y + eyeOffsetY, 12, 14, 0, 0, Math.PI * 2);
+                    ctx.fill();
 
-                ctx.fillStyle = '#000000';
-                ctx.beginPath();
-                ctx.arc(x - eyeOffsetX - 3, y + eyeOffsetY, 6, 0, Math.PI * 2);
-                ctx.fill();
+                    ctx.fillStyle = '#000000';
+                    ctx.beginPath();
+                    ctx.arc(x - eyeOffsetX - 3, y + eyeOffsetY, 6, 0, Math.PI * 2);
+                    ctx.fill();
 
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(x - eyeOffsetX - 1, y + eyeOffsetY - 2, 2, 0, Math.PI * 2);
-                ctx.fill();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(x - eyeOffsetX - 1, y + eyeOffsetY - 2, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
 
-            // Right eye
             if (rightEye && rightEye.score > minConfidence) {
                 ctx.fillStyle = '#ffffff';
                 ctx.beginPath();
-                ctx.ellipse(x + eyeOffsetX, y + eyeOffsetY, 18, 22, 0, 0, Math.PI * 2);
+                ctx.ellipse(x + eyeOffsetX, y + eyeOffsetY, 18, 22 * blink, 0, 0, Math.PI * 2);
                 ctx.fill();
 
-                ctx.fillStyle = '#764ba2';
-                ctx.beginPath();
-                ctx.ellipse(x + eyeOffsetX + 3, y + eyeOffsetY, 12, 14, 0, 0, Math.PI * 2);
-                ctx.fill();
+                if (blink > 0.5) {
+                    ctx.fillStyle = '#764ba2';
+                    ctx.beginPath();
+                    ctx.ellipse(x + eyeOffsetX + 3, y + eyeOffsetY, 12, 14, 0, 0, Math.PI * 2);
+                    ctx.fill();
 
-                ctx.fillStyle = '#000000';
-                ctx.beginPath();
-                ctx.arc(x + eyeOffsetX + 3, y + eyeOffsetY, 6, 0, Math.PI * 2);
-                ctx.fill();
+                    ctx.fillStyle = '#000000';
+                    ctx.beginPath();
+                    ctx.arc(x + eyeOffsetX + 3, y + eyeOffsetY, 6, 0, Math.PI * 2);
+                    ctx.fill();
 
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(x + eyeOffsetX + 1, y + eyeOffsetY - 2, 2, 0, Math.PI * 2);
-                ctx.fill();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(x + eyeOffsetX + 1, y + eyeOffsetY - 2, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
 
-            // Mouth
             ctx.strokeStyle = '#ff6b9d';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(x, y + 25, 12, 0, Math.PI, false);
             ctx.stroke();
 
-            // Draw body/torso
-            ctx.fillStyle = '#667eea';
-            ctx.fillRect(x - 30, y + 50, 60, 50);
+            if (leftShoulder && rightShoulder && leftHip && rightHip &&
+                leftShoulder.score > minConfidence && rightShoulder.score > minConfidence) {
+                
+                const torsoX = (leftShoulder.position.x + rightShoulder.position.x) / 2;
+                const torsoY = (leftShoulder.position.y + rightShoulder.position.y) / 2;
+                const torsoWidth = Math.abs(rightShoulder.position.x - leftShoulder.position.x) * 1.2;
+                const torsoHeight = leftHip.score > minConfidence ? 
+                    Math.abs(leftHip.position.y - leftShoulder.position.y) : 80;
 
-            // Draw arms and hands
-            const leftElbow = keypoints.find(kp => kp.part === 'leftElbow');
-            const leftWrist = keypoints.find(kp => kp.part === 'leftWrist');
-            const rightElbow = keypoints.find(kp => kp.part === 'rightElbow');
-            const rightWrist = keypoints.find(kp => kp.part === 'rightWrist');
-
-            if (leftElbow && leftWrist && leftElbow.score > minConfidence && leftWrist.score > minConfidence) {
-                ctx.strokeStyle = '#fdbcb4';
-                ctx.lineWidth = 10;
-                ctx.lineCap = 'round';
-                ctx.beginPath();
-                ctx.moveTo(x - 30, y + 55);
-                ctx.lineTo(
-                    Math.max(0, Math.min(CANVAS_WIDTH, leftElbow.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, leftElbow.position.y))
-                );
-                ctx.lineTo(
-                    Math.max(0, Math.min(CANVAS_WIDTH, leftWrist.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, leftWrist.position.y))
-                );
-                ctx.stroke();
-
-                // Hand
-                ctx.fillStyle = '#fdbcb4';
-                ctx.beginPath();
-                ctx.arc(
-                    Math.max(0, Math.min(CANVAS_WIDTH, leftWrist.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, leftWrist.position.y)),
-                    8, 0, Math.PI * 2
-                );
-                ctx.fill();
+                const gradient = ctx.createLinearGradient(torsoX, torsoY, torsoX, torsoY + torsoHeight);
+                gradient.addColorStop(0, '#667eea');
+                gradient.addColorStop(1, '#764ba2');
+                ctx.fillStyle = gradient;
+                roundRect(ctx, torsoX - torsoWidth / 2, torsoY, torsoWidth, torsoHeight, 15);
             }
 
-            if (rightElbow && rightWrist && rightElbow.score > minConfidence && rightWrist.score > minConfidence) {
-                ctx.strokeStyle = '#fdbcb4';
-                ctx.lineWidth = 10;
-                ctx.lineCap = 'round';
-                ctx.beginPath();
-                ctx.moveTo(x + 30, y + 55);
-                ctx.lineTo(
-                    Math.max(0, Math.min(CANVAS_WIDTH, rightElbow.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, rightElbow.position.y))
-                );
-                ctx.lineTo(
-                    Math.max(0, Math.min(CANVAS_WIDTH, rightWrist.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, rightWrist.position.y))
-                );
-                ctx.stroke();
+            ['left', 'right'].forEach(side => {
+                const shoulder = keypoints.find(kp => kp.part === `${side}Shoulder`);
+                const elbow = keypoints.find(kp => kp.part === `${side}Elbow`);
+                const wrist = keypoints.find(kp => kp.part === `${side}Wrist`);
 
-                // Hand
-                ctx.fillStyle = '#fdbcb4';
-                ctx.beginPath();
-                ctx.arc(
-                    Math.max(0, Math.min(CANVAS_WIDTH, rightWrist.position.x)),
-                    Math.max(0, Math.min(CANVAS_HEIGHT, rightWrist.position.y)),
-                    8, 0, Math.PI * 2
-                );
-                ctx.fill();
-            }
+                if (shoulder && elbow && wrist && shoulder.score > minConfidence && 
+                    elbow.score > minConfidence && wrist.score > minConfidence) {
+                    
+                    ctx.strokeStyle = '#fdbcb4';
+                    ctx.lineWidth = 10;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(shoulder.position.x, shoulder.position.y);
+                    ctx.lineTo(elbow.position.x, elbow.position.y);
+                    ctx.lineTo(wrist.position.x, wrist.position.y);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#fdbcb4';
+                    ctx.beginPath();
+                    ctx.arc(wrist.position.x, wrist.position.y, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            ['left', 'right'].forEach(side => {
+                const hip = keypoints.find(kp => kp.part === `${side}Hip`);
+                const knee = keypoints.find(kp => kp.part === `${side}Knee`);
+                const ankle = keypoints.find(kp => kp.part === `${side}Ankle`);
+
+                if (hip && knee && ankle && hip.score > minConfidence && 
+                    knee.score > minConfidence && ankle.score > minConfidence) {
+                    
+                    ctx.strokeStyle = '#667eea';
+                    ctx.lineWidth = 12;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(hip.position.x, hip.position.y);
+                    ctx.lineTo(knee.position.x, knee.position.y);
+                    ctx.lineTo(ankle.position.x, ankle.position.y);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#4a5eb8';
+                    ctx.beginPath();
+                    ctx.arc(ankle.position.x, ankle.position.y, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
 
             ctx.shadowBlur = 0;
         }
@@ -966,7 +1002,7 @@
             ctx.strokeStyle = 'rgba(0, 255, 136, 0.5)';
             ctx.lineWidth = 0.5;
             
-            keypoints.forEach((point, idx) => {
+            keypoints.forEach((point) => {
                 const x = Math.max(0, Math.min(CANVAS_WIDTH, point[0]));
                 const y = Math.max(0, Math.min(CANVAS_HEIGHT, point[1]));
                 
@@ -976,7 +1012,6 @@
             });
         }
 
-        // Event listeners
         startBtn.addEventListener('click', startCamera);
         stopBtn.addEventListener('click', stopCamera);
 
